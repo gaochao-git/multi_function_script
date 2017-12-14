@@ -125,7 +125,7 @@ CREATE TABLE `patition_manager_log` (
 `table_name` varchar(128) NOT NULL COMMENT '表名',
 `add_partition_name` varchar(64) NOT NULL COMMENT '增加的分区名',
 `status` tinyint(4) NOT NULL COMMENT '状态:1-->成功,0-->失败',
-`sql` varchar(256) NOT NULL NULL DEFAULT '' COMMENT '执行的SQL',
+`do_sql` varchar(256) NOT NULL NULL DEFAULT '' COMMENT '执行的SQL',
 `description` varchar(1024) NOT NULL NULL DEFAULT '' COMMENT '错误信息',
 `create_time` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00' COMMENT '创建时间',
 `update_time` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00' COMMENT '修改时间',
@@ -255,10 +255,25 @@ def _partition_manager():
                            if "%s" % partition_description in change_to_list:
                                 print "The %s.%s partition name %s is exist, the partition_description is %s" %(schema_name,table_name,add_patition_name,partition_description)
                            else:
-                                add_paririon_sql = ("""alter table %s.%s add partition(partition %s values less than(%s));""") % (schema_name,table_name,add_patition_name,partition_description)
+                                st =''
+                                ds =''
+                                add_paririon_sql = ("""aalter table %s.%s add partition(partition %s values less than(%s));""") % (schema_name,table_name,add_patition_name,partition_description)
                                 try:
                                     cursor.execute(add_paririon_sql)
-                                    print  "The %s.%s partition_name %s add completed, the sql: <%s>" %(schema_name,table_name,add_patition_name,add_paririon_sql)
+                                    #print  "The %s.%s partition_name %s add completed, the sql: <%s>" %(schema_name,table_name,add_patition_name,add_paririon_sql)
+                                    st=1
+                                except Exception,ex:
+                                    #print Exception,":",ex
+                                    st = 0
+                                    ds=ex
+                                #finally:
+                                try:
+                                    print "insert log"
+                                    insert_sql =("""insert into mulberry_test.patition_manager_log(schema_name,table_name,add_partition_name,status,do_sql,description,create_time,update_time)
+                                             values("%s","%s","%s","%d","<%s>","%s",now(),now())""") % (schema_name,table_name,add_patition_name,st,add_paririon_sql,ds) 
+                                    cursor.execute(insert_sql)
+                                    cnx.commit()
+                                    print "log inserted"
                                 except Exception,ex:
                                     print Exception,":",ex
     cursor.close()
