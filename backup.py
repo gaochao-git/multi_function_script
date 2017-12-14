@@ -179,23 +179,28 @@ def _partition_manager():
                                                 order by table_schema,table_name,partition_ordinal_position asc;""") % (schema_name,table_name) 
                    cursor.execute(query_server_forward_day_partition_sql)
                    query_server_forward_day_partition_sql_results = cursor.fetchall() 
-                   print query_server_forward_day_partition_sql_results
+                   #print query_server_forward_day_partition_sql_results
                    for i in range(forward_day):
                        now = datetime.datetime.now()
                        s=now.strftime('%Y-%m-%d')
                        d = datetime.datetime.strptime(s,"%Y-%m-%d")
                        partition_description =  int(time.mktime(d.timetuple()) + 3600*24*i)*1000
+                       #print "doday partition_description is %s" % partition_description
                        suffix_time = time.strftime("%Y%m%d",time.localtime((partition_description -3600*24)/1000))
                        add_patition_name = "p_auto_new_%s" % suffix_time
-#                       if len(query_server_forward_day_partition_results) == 0:
-#                           pass
-#                       else:
-#                           for description in query_server_forward_day_partition_results:
-#                                print description
-#                               if description[0] == partition_description:
-#                                   print description
-#                               else:
-#                                   print description[0]
+                       if len(query_server_forward_day_partition_sql_results) == 0:
+                           pass
+                       else:
+                           change_to_list = []
+                           for description in query_server_forward_day_partition_sql_results:
+                               change_to_list.append(description[0])
+                           if "%s" % partition_description in change_to_list:
+                                print partition_description
+                           else:
+                                print "need add %s"  % description
+                           #        print "The exist description=%s and the today description=%s is exist" % (description[0],partition_description)
+                           #    else:
+                           #        print "The need add partition is %s" %description[0]
 #                              # print "i=%s schema_name=%s" %(i,schema_name)
 #                              # if len(query_server_forward_day_partition_results) != 0:
 #                              #     query_add_partiiton = (""" alter table %s.%s add partition(partition %s values less than(%s));""") % (schema_name,table_name,add_patition_name,partition_description)
