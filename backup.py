@@ -139,53 +139,54 @@ def _partition_manager():
                                                 where partition_name is not null and table_schema='%s' and table_name='%s' and partition_description != "maxvalue"
                                                 and partition_description<= unix_timestamp(date_sub("%s",interval %s day))*1000
                                                 order by table_schema,table_name,partition_ordinal_position asc;""") % (schema_name,table_name,taday,clear_before_day)
-                   print query_server_clear_before_day_partition
-#                   cursor.execute(query_server_clear_before_day_partition)
-#                   partition_results = cursor.fetchall()
-#                   # drop clear before day partition
-#                   for partition in  partition_results:
-#                       if partition:
-#                           partition_name = partition[0]
-#                           query_drop_partition_name = ("alter table %s.%s drop partition %s;") % (schema_name,table_name,partition_name)
-#                           cursor.execute(query_drop_partition_name)
-#                       else:
-#                           pass
-#                   # drop max partition :if max partition is null then drop max partition else not drop max partition
-#                   query_max_partition = ("""select partition_name from information_schema.partitions 
-#                                         where table_schema='%s' and table_name='%s' and partition_description = "maxvalue";""") %(schema_name,table_name)
-#                   cursor.execute(query_max_partition)
-#                   maxvalue_partition_results = cursor.fetchall()
-#                   for partition in maxvalue_partition_results:
-#                       if partition:
-#                           max_partition_name = partition[0]
-#                           query_not_empty = (""" select 1 from birmingham_test.taskno_record partition(%s) limit 1;""") % max_partition_name
-#                           cursor.execute(query_not_empty)
-#                           query_not_empty_results = cursor.fetchall()
-#                           if query_not_empty_results:
-#                               print "The %s.%s partition %s is not empty" %(schema_name,table_name,max_partition_name)
-#                           else:
-#                               query_drop_max_partition = (""" alter table %s.%s drop partition %s; """) % (schema_name,table_name,max_partition_name)
-#                               cursor.execute(query_drop_max_partition)
-#                               print "The %s.%s partition %s is droped !"
-#                       else:
-#                           pass
-#                   # get exist forward day partition
-#                  # query_server_forward_day_partition = ("""select partition_description from information_schema.partitions
-#                  #                              where partition_name is not null and table_schema='%s' and table_name='%s' and partition_description != "maxvalue"
-#                  #                              and partition_description> unix_timestamp(date_sub("%s",interval -%s day))*1000
-#                  #                              order by table_schema,table_name,partition_ordinal_position asc;""") % (schema_name,table_name,taday,forward_day) 
-#                   query_server_forward_day_partition = ("""select partition_description from information_schema.partitions
-#                                                where partition_name is not null and table_schema='%s' and table_name='%s' and partition_description != "maxvalue"
-#                                                order by table_schema,table_name,partition_ordinal_position asc;""") % (schema_name,table_name) 
-#                   cursor.execute(query_server_forward_day_partition)
-#                   query_server_forward_day_partition_results = cursor.fetchall() 
-#                   for i in range(forward_day):
-#                       now = datetime.datetime.now()
-#                       s=now.strftime('%Y-%m-%d')
-#                       d = datetime.datetime.strptime(s,"%Y-%m-%d")
-#                       partition_description =  int(time.mktime(d.timetuple()) + 3600*24*i)*1000
-#                       suffix_time = time.strftime("%Y%m%d",time.localtime((partition_description -3600*24)/1000))
-#                       add_patition_name = "p_auto_new_%s" % suffix_time
+                   cursor.execute(query_server_clear_before_day_partition)
+                   query_server_clear_before_day_partition_results = cursor.fetchall()
+                   # drop clear before day partition
+                   for partition in query_server_clear_before_day_partition_results:
+                       if partition:
+                           partition_name = partition[0]
+                           query_drop_partition_sql = ("alter table %s.%s drop partition %s;") % (schema_name,table_name,partition_name)
+                           print query_drop_partition_sql
+                           #cursor.execute(query_drop_partition_name)
+                       else:
+                           pass
+                   # drop max partition :if max partition is null then drop max partition else not drop max partition
+                   query_max_partition_sql = ("""select partition_name from information_schema.partitions 
+                                         where table_schema='%s' and table_name='%s' and partition_description = "maxvalue";""") %(schema_name,table_name)
+                   cursor.execute(query_max_partition_sql)
+                   query_max_partition_sql_results = cursor.fetchall()
+                   for partition in query_max_partition_sql_results:
+                       if partition:
+                           max_partition_name = partition[0]
+                           query_not_empty = ("""select 1 from %s.%s partition(%s) limit 1;""") % (schema_name,table_name,max_partition_name)
+                           cursor.execute(query_not_empty)
+                           query_not_empty_results = cursor.fetchall()
+                           if query_not_empty_results:
+                               print "The %s.%s partition %s is not empty" %(schema_name,table_name,max_partition_name)
+                           else:
+                               query_drop_max_partition_sql = ("""alter table %s.%s drop partition %s; """) % (schema_name,table_name,max_partition_name)
+                               print query_drop_max_partition_sql 
+                               #cursor.execute(query_drop_max_partition)
+                       else:
+                           pass
+                   # get exist forward day partition
+                  # query_server_forward_day_partition = ("""select partition_description from information_schema.partitions
+                  #                              where partition_name is not null and table_schema='%s' and table_name='%s' and partition_description != "maxvalue"
+                  #                              and partition_description> unix_timestamp(date_sub("%s",interval -%s day))*1000
+                  #                              order by table_schema,table_name,partition_ordinal_position asc;""") % (schema_name,table_name,taday,forward_day) 
+                   query_server_forward_day_partition_sql = ("""select partition_description from information_schema.partitions
+                                                where partition_name is not null and table_schema='%s' and table_name='%s' and partition_description != "maxvalue"
+                                                order by table_schema,table_name,partition_ordinal_position asc;""") % (schema_name,table_name) 
+                   cursor.execute(query_server_forward_day_partition_sql)
+                   query_server_forward_day_partition_sql_results = cursor.fetchall() 
+                   print query_server_forward_day_partition_sql_results
+                   for i in range(forward_day):
+                       now = datetime.datetime.now()
+                       s=now.strftime('%Y-%m-%d')
+                       d = datetime.datetime.strptime(s,"%Y-%m-%d")
+                       partition_description =  int(time.mktime(d.timetuple()) + 3600*24*i)*1000
+                       suffix_time = time.strftime("%Y%m%d",time.localtime((partition_description -3600*24)/1000))
+                       add_patition_name = "p_auto_new_%s" % suffix_time
 #                       if len(query_server_forward_day_partition_results) == 0:
 #                           pass
 #                       else:
