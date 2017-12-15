@@ -196,7 +196,7 @@ def _partition_manager():
                            query_drop_partition_sql = ("alter table %s.%s drop partition %s;") % (schema_name,table_name,partition_name)
                            try:
                                cursor.execute(query_drop_partition_sql)
-                               print "The %s.%s partition %s is droped,the sql:<%s>" %(schema_name,table_name,partition_name,query_drop_partition_sql)
+                               print "%s" %(query_drop_partition_sql)
                            except Exception,ex:
                                print Exception,":",ex
                        else:
@@ -224,7 +224,7 @@ def _partition_manager():
                                query_drop_max_partition_sql = ("""alter table %s.%s drop partition %s;""") % (schema_name,table_name,max_partition_name)
                                try:
                                    cursor.execute(query_drop_max_partition_sql)
-                                   print "The %s.%s partition %s is droped,the sql: <%s>" %(schema_name,table_name,max_partition_name,query_drop_max_partition_sql)  
+                                   print "%s" %(query_drop_max_partition_sql)  
                                except Exception,ex:
                                    print Exception,":",ex
                        else:
@@ -255,27 +255,49 @@ def _partition_manager():
                            if "%s" % partition_description in change_to_list:
                                 print "The %s.%s partition name %s is exist, the partition_description is %s" %(schema_name,table_name,add_patition_name,partition_description)
                            else:
-                                st =''
-                                ds =''
-                                add_paririon_sql = ("""aalter table %s.%s add partition(partition %s values less than(%s));""") % (schema_name,table_name,add_patition_name,partition_description)
+                                st = ''
+                                ds = ''
+                                add_paririon_sql = ("""alter table %s.%s add partition(partition %s values less than(%s));""") % (schema_name,table_name,add_patition_name,partition_description)
                                 try:
                                     cursor.execute(add_paririon_sql)
                                     #print  "The %s.%s partition_name %s add completed, the sql: <%s>" %(schema_name,table_name,add_patition_name,add_paririon_sql)
                                     st=1
+                                    ds = ''
                                 except Exception,ex:
                                     #print Exception,":",ex
                                     st = 0
                                     ds=ex
-                                #finally:
-                                try:
-                                    print "insert log"
-                                    insert_sql =("""insert into mulberry_test.patition_manager_log(schema_name,table_name,add_partition_name,status,do_sql,description,create_time,update_time)
-                                             values("%s","%s","%s","%d","<%s>","%s",now(),now())""") % (schema_name,table_name,add_patition_name,st,add_paririon_sql,ds) 
-                                    cursor.execute(insert_sql)
-                                    cnx.commit()
-                                    print "log inserted"
-                                except Exception,ex:
-                                    print Exception,":",ex
+                                finally:
+                                    try:
+                                        insert_sql =("""insert into mulberry_test.patition_manager_log(schema_name,table_name,add_partition_name,status,do_sql,description,create_time,update_time)
+                                                 values("%s","%s","%s","%d","<%s>","%s",now(),now())""") % (schema_name,table_name,add_patition_name,st,add_paririon_sql,ds) 
+                                        cursor.execute(insert_sql)
+                                        cnx.commit()
+                                    except Exception,ex:
+                                        print Exception,":",ex
+                   #增加被删除的最大分区
+                   query_add_max_partition_sql = ("""alter table %s.%s add partition(partition p_9999 values less than maxvalue);""") % (schema_name,table_name)
+                   st = ''
+                   de = ''
+                   try:
+                       cursor.execute(query_add_max_partition_sql)
+                       print query_add_max_partition_sql
+                       st = 1
+                       ds =''
+                   except Exception,ex:
+                       #print Exception,":",ex 
+                       st = 0
+                       ds = ex
+                   finally:
+                       try:
+                           insert_max_partition_sql =("""insert into mulberry_test.patition_manager_log(schema_name,table_name,add_partition_name,status,do_sql,description,create_time,update_time) 
+                                        values("%s","%s","%s","%d","<%s>","%s",now(),now())""") % (schema_name,table_name,add_patition_name,st,query_add_max_partition_sql,ds)
+                           cursor.execute(insert_max_partition_sql)
+                           cnx.commit()
+                       except Exception,ex:
+                           print Exception,":",ex
+                           print "lala"
+                           
     cursor.close()
     cnx.close()
 
