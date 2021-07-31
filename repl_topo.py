@@ -8,9 +8,11 @@ import logging as logger
 import sys
 import pymysql
 import argparse
+import prettytable as pt
+import time
+
 sys.setrecursionlimit(100)
-db_all_remote_user = "wth"
-db_all_remote_pass = "fffjjj"
+
 
 def target_source_find_all(ip, port, sql, my_connect_timeout=2):
     """
@@ -21,11 +23,17 @@ def target_source_find_all(ip, port, sql, my_connect_timeout=2):
     :param my_connect_timeout:
     :return:
     """
+    ip_port_sql_cache_key = ip + str(port) + sql
+    if ip_port_sql_cache_key in ip_port_sql_cache_dict:
+        return ip_port_sql_cache_dict[ip_port_sql_cache_key]
+    ins = ip+ '_' + str(port)
     conn = False
     data = []
     try:
-        conn = pymysql.connect(host=ip, port=int(port), user=db_all_remote_user, passwd=db_all_remote_pass, db="",
-                               charset="utf8",connect_timeout=my_connect_timeout)
+        if ins in ip_port_cache_dict:
+            conn = ip_port_cache_dict[ins]
+        else:
+            conn = pymysql.connect(host=ip, port=int(port), user=db_all_remote_user, passwd=db_all_remote_pass, db="", charset="utf8",connect_timeout=my_connect_timeout)
         cursor = conn.cursor()
         cursor.execute(sql)
         rows = cursor.fetchall()
@@ -33,14 +41,17 @@ def target_source_find_all(ip, port, sql, my_connect_timeout=2):
         status = "ok"
         message = "执行成功"
         code = ""
+        ip_port_cache_dict[ins] = conn
     except Exception as e:
         status = "error"
         message = "connect_ip:%s,connect_port:%s,sql:%s,error:%s" %(ip, port, sql, str(e))
         code = 2201
     finally:
-        if conn: cursor.close()
-        if conn: conn.close()
-        return {"status": status, "message": message, "code": code, "data": data}
+        #if conn: cursor.close()
+        #if conn: conn.close()
+        content = {"status": status, "message": message, "code": code, "data": data} 
+        ip_port_sql_cache_dict[ip_port_sql_cache_key] = content
+        return content
 
 
 def target_source_ping(ip, port):
@@ -81,10 +92,23 @@ class ReplInfo():
         draw_tree_result_list = repl_tree.drwa_tree()
         # 替换拓扑图输出结构
         out_repl_tree = ""
+        max_length = max([len(node) for node in draw_tree_result_list])
+        tb = pt.PrettyTable()
+        if summary:
+            tb.field_names = ['topo','read_only','semi_master','semi_slave','io','sql','behind','conn','run','time']
+        else:
+            tb.field_names = ['topo']
+        tb.align['topo'] = 'l'
         for node in draw_tree_result_list:
             node = node.replace(":","_")
             if node.find('None') < 0:
+                if summary:
+                    node = self.node_info(max_length, node, table, tb)
+                else:
+                    tb.add_row([node])
                 out_repl_tree = out_repl_tree + node + "\n"
+        if table:
+            out_repl_tree =tb
         # 去重
         output_instance_list_pre = list(set(self.output_instance_list))
         output_instance_list = []
@@ -95,7 +119,60 @@ class ReplInfo():
         logger.info("repl_info:%s" % repl_info)
         content = {"status":"ok", "message":"ok", "data": repl_info}
         return content
-
+    
+    def node_info(self,max_length,node,table,tb):
+        my_node = node
+        if node.startswith('|'):
+            ip = node.split(' ')[1].split('_')[0]
+            port = node.split(' ')[1].split('_')[1]
+        else:
+            ip = node.split('_')[0]
+            port = node.split('_')[1]
+        # 获取read_only信息
+        sql = "select @@global.read_only as read_only"
+        read_only_info = target_source_find_all(ip,port,sql,0.2)
+        if read_only_info['data'][0]['read_only'] == 0:
+            read_only = 'OFF'
+        else:
+            read_only = 'ON'
+        space_length = max_length - len(node)
+        node = node + ' '*space_length + ' ' + read_only
+       
+        # 获取半同步信息
+        sql = '''
+                  select case @@global.rpl_semi_sync_master_enabled when 0 then "OFF" when 1 then "ON" else "no_semi" end as semi_master_enabled,
+                         case @@global.rpl_semi_sync_slave_enabled when 0 then "OFF" when 1 then "ON" else "no_semi" end as semi_slave_enabled
+              '''
+        semi_info = target_source_find_all(ip,port,sql,0.2)
+        node = node + " " + semi_info['data'][0]['semi_master_enabled']
+        node = node + " " + semi_info['data'][0]['semi_slave_enabled']
+        sql = "select count(*) as conn from information_schema.processlist where user not in('system user')"
+        conn_info = target_source_find_all(ip,port,sql,0.2)
+        conn_threads = str(conn_info['data'][0]['conn'])
+        node = node + " " + conn_threads
+        sql = "select count(*) as run from information_schema.processlist where command in ('Query','Execute')"
+        run_info = target_source_find_all(ip,port,sql,0.2) 
+        run_threads = str(run_info['data'][0]['run'])
+        node = node + " " + run_threads
+        sql = "select now() as time"
+        time_info = target_source_find_all(ip,port,sql,0.2)
+        cur_time = time_info['data'][0]['time']
+        node = node + " " + str(cur_time)
+        # 获取复制信息
+        if node.startswith('|'):
+            sql1 = "show slave status"
+            slave_info = target_source_find_all(ip,port,sql1,0.2)
+            io = slave_info['data'][0]['Slave_IO_Running']
+            sql = slave_info['data'][0]['Slave_SQL_Running']
+            behind = slave_info['data'][0]['Seconds_Behind_Master']
+            node = node + ' ' + 'io-sql-begind=%s-%s-%s' %(io,sql,behind)
+            if table:
+                tb.add_row([my_node,read_only,semi_info['data'][0]['semi_master_enabled'],semi_info['data'][0]['semi_slave_enabled'],io,sql,behind,conn_threads,run_threads,cur_time])
+        else: 
+            if table:
+                tb.add_row([my_node,read_only,semi_info['data'][0]['semi_master_enabled'],semi_info['data'][0]['semi_slave_enabled'],'','','',conn_threads,run_threads,cur_time])
+        return node
+            
     @staticmethod
     def get_top_node(host, port):
         """
@@ -346,15 +423,29 @@ class ReplTree():
 
 
 if __name__ == "__main__":
+    db_all_remote_user = "wth"
+    db_all_remote_pass = "fffjjj"
+    ip_port_sql_cache_dict = {}
+    ip_port_cache_dict = {}
     parser = argparse.ArgumentParser(description='Get Cluster Topo By Instance')
     parser.add_argument("-H", "--host", required=True, help="input host")
-    parser.add_argument("-P", "--port", required=True, type=int, help="input port")
+    parser.add_argument("-P", "--port", type=int, help="input port",default=3306)
+    parser.add_argument("--sum",action='store_true', help="output other info",default=False)
+    parser.add_argument("--table",action='store_true', help="output table format",default=False)
     args = parser.parse_args()
     host = args.host
     port = args.port
-    obj = ReplInfo(host, port) 
-    topo_ret = obj.repl_topol_show()
-    if topo_ret['status'] != "ok":
-        print(topo_ret['message'])
-    else:
-        print(topo_ret['data'][0]['output_node_relation_list'])
+    summary = args.sum
+    table = args.table
+    try:
+        obj = ReplInfo(host, port) 
+        topo_ret = obj.repl_topol_show()
+        if topo_ret['status'] != "ok":
+            print(topo_ret['message'])
+        else:
+            print(topo_ret['data'][0]['output_node_relation_list'])
+    except Exception as e:
+        print(str(e))
+    finally:
+        for conn in ip_port_cache_dict.values():
+            conn.close()
