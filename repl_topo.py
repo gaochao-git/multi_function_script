@@ -213,7 +213,7 @@ class ReplInfo():
         slave_io_status = master_info.get('Slave_IO_Running')
         slave_sql_status = master_info.get('Slave_SQL_Running')
         # 有slave信息但是无效则认为没有
-        if slave_io_status == "No" and slave_sql_status == "No":
+        if slave_io_status == "No" or slave_io_status == "Connecting":
             return ""
         else:
             return "%s:%s" % (master_host, master_port)
