@@ -159,18 +159,19 @@ class ReplInfo():
         cur_time = time_info['data'][0]['time']
         node = node + " " + str(cur_time)
         # 获取复制信息
-        if node.startswith('|'):
-            sql1 = "show slave status"
-            slave_info = target_source_find_all(ip,port,sql1,0.2)
+        sql1 = "show slave status"
+        slave_info = target_source_find_all(ip,port,sql1,0.2)
+        if len(slave_info['data']) >0:
             io = slave_info['data'][0]['Slave_IO_Running']
             sql = slave_info['data'][0]['Slave_SQL_Running']
             behind = slave_info['data'][0]['Seconds_Behind_Master']
             node = node + ' ' + 'io-sql-begind=%s-%s-%s' %(io,sql,behind)
-            if table:
-                tb.add_row([my_node,read_only,semi_info['data'][0]['semi_master_enabled'],semi_info['data'][0]['semi_slave_enabled'],io,sql,behind,conn_threads,run_threads,cur_time])
-        else: 
-            if table:
-                tb.add_row([my_node,read_only,semi_info['data'][0]['semi_master_enabled'],semi_info['data'][0]['semi_slave_enabled'],'','','',conn_threads,run_threads,cur_time])
+        else:
+            io = ''
+            sql = ''
+            behind = ''
+        if table:
+            tb.add_row([my_node,read_only,semi_info['data'][0]['semi_master_enabled'],semi_info['data'][0]['semi_slave_enabled'],io,sql,behind,conn_threads,run_threads,cur_time])
         return node
             
     @staticmethod
@@ -213,7 +214,10 @@ class ReplInfo():
         slave_io_status = master_info.get('Slave_IO_Running')
         slave_sql_status = master_info.get('Slave_SQL_Running')
         # 有slave信息但是无效则认为没有
-        if slave_io_status == "No" or slave_io_status == "Connecting":
+        if slave_io_status == "No":
+            return ""
+        elif slave_io_status == "Connecting":
+            print('NOTE!!! %s_%s slave_io_stats状态为Connecting,忽略对应主节点' %(host, port))
             return ""
         else:
             return "%s:%s" % (master_host, master_port)
